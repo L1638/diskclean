@@ -1,0 +1,1 @@
+ADD_EXECUTABLE( diskclean main.c diskclean.c )
