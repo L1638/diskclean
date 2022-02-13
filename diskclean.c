@@ -12,79 +12,6 @@
 #include <assert.h>
 #include "diskclean.h"
 
-/*
-#define FTW_F    1
-#define FTW_D    2
-
-static char *fullpath;
-static size_t pathlen;
-
-static int diskclean(const char *path, const struct dc_options *opt)
-{
-    pathlen = PATH_MAX + 1;
-    fullpath = (char *)malloc(pathlen);
-    if (pathlen <= strlen(path)) {
-        pathlen = strlen(path) * 2;
-        if ((fullpath = realloc(fullpath, pathlen)) == NULL) {
-            perror("realloc error");
-            return errno;
-        }
-    }
-    strcpy(fullpath, path);
-    return dopath(opt);
-}
-
-int dopath(struct dc_options const *opt)
-{
-    struct stat statbuf;
-    struct dirent *dirp;
-    struct timespec prev_atime, prev_mtime;
-    DIR *dp;
-    int ret, n;
-
-    if (lstat(fullpath, &statbuf) < 0) {
-        perror("stat error");
-        return errno;
-    }
-    if (S_ISDIR(statbuf.st_mode) == 0) {
-        // Not a directory, try to delete it
-        return dc(fullpath, opt, FTW_F);
-    }
-    prev_atime = statbuf.st_atim;
-    prev_mtime = statbuf.st_mtim;
-
-    n = strlen(fullpath);
-    if (n + NAME_MAX + 2 > pathlen) {
-        pathlen *= 2;
-        if ((fullpath = realloc(fullpath, pathlen)) == NULL) {
-            perror("realloc error");
-            return errno;
-        }
-    }
-    fullpath[n++] = '/';
-    fullpath[n] = 0;
-
-    if ((dp = opendir(fullpath)) == NULL) {
-        // can't read directory
-        return 0;
-    }
-    while ((dirp = readdir(dp)) != NULL) {
-        if (strcmp(dirp->d_name, ".") == 0 ||
-            strcmp(dirp->d_name, "..") == 0)
-                continue;
-        strcpy(&fullpath[n], dirp->d_name);
-        if ((ret = dopath(opt)) != 0)
-            break;
-    }
-    fullpath[n-1] = 0;
-    if (closedir(dp) < 0) {
-        perror("can't close directory");
-        return errno;
-    }
-    ret = dc(fullpath, opt, FTW_D);
-}
-*/
-
 bool
 yesno (void)
 {
@@ -250,7 +177,13 @@ dc_fts(FTS *fts, FTSENT *ent, const struct dc_options *opt)
                 printf("\n");
                 return DC_OK;
             }
-            return prompt(fts, ent, false, opt);
+            {
+                enum DC_status s = prompt(fts, ent, false, opt);
+                if (s == DC_OK) {
+                    s = excise(fts, ent, opt, false);
+                }
+                return s;
+            }
 
         case FTS_DP:         /* postorder directory */
             /* Directory is not old enough */
@@ -264,7 +197,13 @@ dc_fts(FTS *fts, FTSENT *ent, const struct dc_options *opt)
                 printf("\n");
                 return DC_OK;
             }
-            return prompt(fts, ent, true, opt);
+            {
+                enum DC_status s = prompt(fts, ent, true, opt);
+                if (s == DC_OK) {
+                    s = excise(fts, ent, opt, true);
+                }
+                return s;
+            }
 
         case FTS_DC:         /* directory that causes cycles */
             fprintf(stderr, "cycle detected: %s\n", ent->fts_path);
